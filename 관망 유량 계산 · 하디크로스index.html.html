@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>관망 유량 계산 · 하디크로스</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f4;--panel:#fbfdfd;--ink:#0d2a35;--mut:#5d7580;--line:#cfdce0;--water:#0a7e8c;--water2:#d6eef1;--amber:#d98a1f;--amber2:#fbeacb;--field:#f3f8f9;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a171d;--panel:#10242c;--ink:#e3eff2;--mut:#86a2ad;--line:#244451;--water:#43c0cf;--water2:#12363e;--amber:#f0b04f;--amber2:#3a2c12;--field:#0c1d24}}
+:root[data-theme="dark"]{--bg:#0a171d;--panel:#10242c;--ink:#e3eff2;--mut:#86a2ad;--line:#244451;--water:#43c0cf;--water2:#12363e;--amber:#f0b04f;--amber2:#3a2c12;--field:#0c1d24}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;line-height:1.55;font-variant-numeric:tabular-nums}
+main{max-width:1060px;margin:0 auto;padding:36px 20px 56px}
+header{margin-bottom:28px;max-width:640px}
+h1{font-family:"Noto Serif KR",Georgia,serif;font-size:clamp(1.9rem,5vw,2.6rem);line-height:1.2;margin:0 0 10px;letter-spacing:-.01em}
+header p{margin:0;color:var(--mut)}
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+section+section{margin-top:16px}
+h2{font-size:1rem;margin:0 0 4px}
+.hint{color:var(--mut);font-size:.82rem;margin:0 0 12px}
+input{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--water);outline-offset:1px}
+.prow{display:grid;grid-template-columns:1fr 1fr 1fr 30px;gap:6px;margin-bottom:6px;align-items:center}
+.phead{color:var(--mut);font-size:.78rem;margin-bottom:4px}
+.lrow{display:grid;grid-template-columns:1fr 30px;gap:6px;margin-bottom:6px}
+.x{border:0;background:transparent;color:var(--mut);font-size:1.1rem;cursor:pointer;border-radius:6px;height:32px}
+.x:hover{background:var(--field);color:var(--ink)}
+.add{border:1px dashed var(--line);background:transparent;color:var(--water);font:inherit;font-weight:500;border-radius:6px;padding:7px 12px;cursor:pointer;width:100%;margin-top:2px}
+.add:hover{background:var(--water2)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--mut);font:inherit;padding:7px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--water);color:var(--panel);font-weight:600}
+details{margin-top:14px;font-size:.88rem}
+summary{cursor:pointer;color:var(--mut)}
+.adv{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.adv label{display:block;color:var(--mut);font-size:.78rem;margin-bottom:3px}
+.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;border-radius:8px;padding:8px 14px;cursor:pointer;margin-top:14px}
+.ghost:hover{background:var(--field)}
+.status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.pill{border-radius:999px;padding:4px 12px;font-size:.85rem;font-weight:600;background:var(--water2);color:var(--water)}
+.pill.warn{background:var(--amber2);color:var(--amber)}
+.err{color:var(--amber);font-weight:500;margin:0}
+.res{display:grid;grid-template-columns:3.2rem minmax(60px,1fr) 5.5rem 6.5rem;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.res.h{color:var(--mut);font-size:.78rem;padding-top:0}
+.res b{font-weight:600}
+.res .num{text-align:right}
+.track{height:10px;background:var(--field);border-radius:5px;overflow:hidden}
+.bar{height:100%;background:var(--water);border-radius:5px;transition:width .45s cubic-bezier(.2,.7,.2,1)}
+.bar.neg{background:var(--amber)}
+.note{color:var(--mut);font-size:.8rem;margin:10px 0 0}
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .tick{fill:var(--mut);font-size:10px}
+.chart .tol{stroke:var(--amber);stroke-width:1.2;stroke-dasharray:4 3}
+.chart .ln{fill:none;stroke:var(--water);stroke-width:2.2;stroke-linejoin:round}
+.chart .dot{fill:var(--water)}
+.loops{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.loops span{background:var(--field);border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:.84rem}
+@media (prefers-reduced-motion:reduce){.bar{transition:none}}
+:root{--bg:#f2f4f7;--panel:#fff;--ink:#121e2b;--mut:#5a6a7b;--line:#dbe1e8;--water:#1b5fa6;--water2:#e5eef8;--amber:#b8620a;--amber2:#fcefdc;--field:#f7f9fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d141c;--panel:#141d28;--ink:#e6edf4;--mut:#8a9bad;--line:#263444;--water:#5aa2ee;--water2:#162b44;--amber:#f0a24a;--amber2:#38270f;--field:#101823}}
+:root[data-theme="dark"]{--bg:#0d141c;--panel:#141d28;--ink:#e6edf4;--mut:#8a9bad;--line:#263444;--water:#5aa2ee;--water2:#162b44;--amber:#f0a24a;--amber2:#38270f;--field:#101823}
+main{padding-top:28px}
+header{max-width:none;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+h1{font-family:inherit;font-size:clamp(1.5rem,3.5vw,1.85rem);font-weight:600;letter-spacing:-.02em;margin:0 0 6px}
+.eq{margin-top:12px;display:inline-block;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 10px;font-size:.84rem}
+section{border-radius:6px}
+h2{font-size:.95rem;font-weight:600}
+input{border-radius:4px;background:var(--panel)}
+.add,.seg,.ghost,.pill,.x{border-radius:4px}
+.seg button{border-radius:0}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:6px;margin-bottom:16px}
+.m{padding:10px 12px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.m:first-child{border-left:0}
+.m span{color:var(--mut);font-size:.76rem}
+.m b{font-size:1rem;font-weight:600}
+@media(max-width:520px){.metrics{grid-template-columns:repeat(2,1fr)}.m:nth-child(3){border-left:0}.m:nth-child(n+3){border-top:1px solid var(--line)}}
+.res{padding:8px 10px}
+.res.h{background:var(--field);border-radius:4px 4px 0 0;font-weight:500;padding:7px 10px}
+.track{height:8px;border-radius:2px}
+.bar{border-radius:2px}
+.ghost.sm{margin:0 0 0 auto;padding:5px 11px;font-size:.82rem}
+.itr{display:grid;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:.88rem}
+.itr.h{background:var(--field);color:var(--mut);font-size:.78rem;font-weight:500;border-radius:4px 4px 0 0}
+.itr .num{text-align:right}
+:root{--bg:#f4f5f6;--panel:#fff;--ink:#0f1f33;--mut:#5f6b78;--line:#e1e5ea;--water:#17304f;--water2:#e8edf3;--amber:#9a6b1e;--amber2:#f5ecd9;--field:#f7f8fa}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a121c;--panel:#101b29;--ink:#e9eef4;--mut:#8d9bab;--line:#223244;--water:#86b4dc;--water2:#162840;--amber:#d8b26a;--amber2:#2b2314;--field:#0d1722}}
+:root[data-theme="dark"]{--bg:#0a121c;--panel:#101b29;--ink:#e9eef4;--mut:#8d9bab;--line:#223244;--water:#86b4dc;--water2:#162840;--amber:#d8b26a;--amber2:#2b2314;--field:#0d1722}
+header{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:32px;align-items:center;background:#0e1c2e;color:#eef2f6;border:0;border-radius:6px;padding:36px 40px;margin-bottom:28px}
+header h1{grid-column:1;font-family:"Noto Serif KR","Nanum Myeongjo",Georgia,serif;font-weight:500;font-size:clamp(1.9rem,4.6vw,2.6rem);letter-spacing:.01em;color:#f3f0e8;margin:0 0 12px}
+header p{grid-column:1;color:#9fb1c5;margin:0;max-width:34em}
+header .eq{grid-column:1;justify-self:start;background:transparent;border:1px solid #c9ad72;color:#e7d9b8;border-radius:2px;padding:6px 12px;margin-top:20px;font-size:.84rem}
+.mast-art{grid-column:2;grid-row:1 / span 3;width:min(280px,34vw);height:auto}
+@media(max-width:700px){header{grid-template-columns:1fr;padding:26px 22px}.mast-art{grid-column:1;grid-row:auto;width:100%;max-width:300px;margin-top:22px}}
+.layout{gap:28px}
+section{border-radius:4px;padding:24px}
+h2{font-family:"Noto Serif KR",Georgia,serif;font-weight:600;font-size:1.05rem}
+.add,.pill,.ghost,.seg,input{border-radius:2px}
+.metrics{border-radius:4px}
+.m b{font-family:"Noto Serif KR",Georgia,serif;font-weight:600;font-size:1.1rem}
+header{position:relative}
+.themebtn{position:absolute;top:14px;right:14px;background:transparent;border:1px solid #3a4c63;color:#c9d6e4;border-radius:2px;padding:5px 11px;font:inherit;font-size:.8rem;cursor:pointer}
+.themebtn:hover{border-color:#c9ad72;color:#e7d9b8}
+.nbody{margin-top:8px;color:var(--mut);line-height:1.6}
+.nbody p{margin:0 0 8px}
+.nbody ul{margin:0 0 8px;padding-left:18px}
+.nbody b{color:var(--ink);font-weight:600}
+[hidden]{display:none!important}
+.vsw{display:inline-flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;margin-bottom:16px;background:var(--panel)}
+.vsw button{border:0;background:transparent;color:var(--mut);font:inherit;padding:8px 16px;cursor:pointer}
+.vsw button[aria-pressed="true"]{background:var(--water);color:var(--panel);font-weight:600}
+#gem{--gb:#131314;--gs:#1e1f20;--gbd:#3c4043;--gt:#e3e3e3;--gm:#c4c7c5;--gg:linear-gradient(135deg,#4285f4,#9b72cb,#d96570);color:var(--gt);font-family:"Google Sans","IBM Plex Sans KR","Malgun Gothic",sans-serif}
+#gem .gc{background:var(--gs);border:1px solid var(--gbd);border-radius:24px;padding:32px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#gem .gh{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--gbd);padding-bottom:20px;margin-bottom:20px}
+#gem .gbrand{display:flex;align-items:center;gap:16px}
+#gem .spark{width:36px;height:36px;background:var(--gg);clip-path:polygon(50% 0%,65% 35%,100% 50%,65% 65%,50% 100%,35% 65%,0% 50%,35% 35%)}
+#gem .gtitle{font-size:20px;font-weight:600;background:var(--gg);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+#gem .gsub{color:var(--gm);font-size:13px;margin-top:4px}
+#gem .gbtn{background:#fff;color:#111;border:0;padding:10px 20px;font:inherit;font-size:14px;font-weight:600;border-radius:20px;cursor:pointer}
+#gem .gbtn.grad{background:var(--gg);color:#fff}
+#gem .gtools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;color:var(--gm);font-size:13px}
+#gem .gtools input{width:70px;background:var(--gb);color:#fff;border:1px solid var(--gbd);border-radius:6px;padding:6px;text-align:center}
+#gem .gtw{max-height:320px;overflow:auto;border:1px solid var(--gbd);border-radius:14px;margin-bottom:20px}
+#gem table{width:100%;border-collapse:collapse;font-size:13px}
+#gem th,#gem td{padding:10px;border-bottom:1px solid var(--gbd);text-align:center;white-space:nowrap}
+#gem th{background:#171819;color:var(--gm);font-weight:500;position:sticky;top:0}
+#gem td input,#gem td select{width:84px;background:var(--gb);border:1px solid var(--gbd);color:#fff;padding:6px;border-radius:6px;text-align:center;font:inherit}
+#gem .ggrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:760px){#gem .ggrid{grid-template-columns:1fr}#gem .gc{padding:20px}}
+#gem .gbox{border:1px solid var(--gbd);border-radius:16px;padding:20px;background:rgba(255,255,255,.02)}
+#gem h3{margin:0 0 12px;font-size:14px;color:var(--gm);font-weight:500;font-family:inherit}
+#gem pre{background:var(--gb);color:#8ab4f8;padding:14px;border-radius:10px;height:220px;overflow:auto;font:12px Consolas,monospace;margin:0;border:1px solid var(--gbd)}
+#gem .gsum{list-style:none;padding:0;margin:0;max-height:220px;overflow:auto}
+#gem .gsum li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+#gem .gsum li span:last-child{font-weight:600;color:#81c995}
+#gem .gmut{color:var(--gm)}
+.itsel{display:inline-flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;margin:10px 0 4px}
+.itsel button{border:0;background:transparent;color:var(--mut);font:inherit;padding:6px 14px;cursor:pointer}
+.itsel button[aria-pressed="true"]{background:var(--water);color:var(--panel);font-weight:600}
+.ctr{display:grid;grid-template-columns:3rem 1fr 1fr 1fr;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:.88rem}
+.ctr.h{background:var(--field);color:var(--mut);font-size:.78rem;font-weight:500;border-radius:4px 4px 0 0}
+.ctr.f{font-weight:600}
+.ctr .num{text-align:right}
+.ctt{font-weight:600;margin:16px 0 6px}
+:root[data-theme="dark"]{--bg:#070d14;--panel:#0e1925;--line:#1f2f41;--field:#0b1520}
+:root[data-theme="dark"] body{background-color:var(--bg);background-image:radial-gradient(ellipse 80% 45% at 50% -8%,rgba(134,180,220,.12),transparent 70%),linear-gradient(rgba(134,180,220,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(134,180,220,.04) 1px,transparent 1px);background-size:auto,36px 36px,36px 36px;background-attachment:fixed}
+:root[data-theme="dark"] header{background:#0b1829;border:1px solid #1f3147}
+.layout>div{display:flex;flex-direction:column;gap:16px}
+.layout section+section{margin-top:0}
+.layout>div:first-child>section:nth-child(3){order:-1}
+@media(min-width:861px){.layout>div:last-child{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}}
+@media(max-width:860px){.layout{gap:16px}.layout>div{display:contents}.layout>div:first-child>section:nth-child(3){order:1}#out{order:2}.layout>div:first-child>section:nth-child(1){order:3}.layout>div:first-child>section:nth-child(2){order:4}.layout>div:last-child>section:nth-child(2){order:5}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>관망 유량 계산</h1>
+<p>여러 갈래로 이어진 수도관에서 각 관에 물이 얼마나 흐르는지 계산해요. 값을 고치면 결과가 바로 바뀌어요.</p>
+<div class="eq">하디크로스 방법: 처음 추정한 유량을 조금씩 고쳐 가며 정확한 값을 찾아요</div>
+<button type="button" id="theme" class="themebtn"></button>
+<svg class="mast-art" viewBox="0 0 290 215" fill="none" role="img" aria-label="폐합 관망 개략도">
+<style>.mhfl{stroke:#0a8ea3;stroke-width:1.8;stroke-dasharray:3 9;stroke-linecap:round;opacity:.9;animation:mhfl 3.2s linear infinite}@keyframes mhfl{to{stroke-dashoffset:-24}}@media (prefers-reduced-motion:reduce){.mhfl{animation:none}}</style>
+<defs>
+<filter id="mh-sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="6" stdDeviation="4.5" flood-color="#000" flood-opacity=".55"/></filter>
+<radialGradient id="mh-sph" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#f4f9fe"/><stop offset=".45" stop-color="#8fa6bd"/><stop offset="1" stop-color="#2a3a4d"/></radialGradient>
+<radialGradient id="mh-fl" cx=".4" cy=".35" r=".9"><stop offset="0" stop-color="#52667c"/><stop offset="1" stop-color="#111c2a"/></radialGradient>
+<path id="mh-a" d="M40 50H240M40 50V160M40 160L140 50"/>
+<path id="mh-b" d="M240 50V160"/>
+<path id="mh-c" d="M40 160H240"/>
+</defs>
+<g stroke-linecap="round" filter="url(#mh-sh)">
+<use href="#mh-a" stroke="#0f1b29" stroke-width="15"/>
+<use href="#mh-b" stroke="#0f1b29" stroke-width="13.8"/>
+<use href="#mh-c" stroke="#0f1b29" stroke-width="12"/>
+</g>
+<g stroke-linecap="round">
+<use href="#mh-a" stroke="#6f869e" stroke-width="12"/>
+<use href="#mh-b" stroke="#6f869e" stroke-width="10.8"/>
+<use href="#mh-c" stroke="#6f869e" stroke-width="9"/>
+<use href="#mh-a" stroke="#b4c7da" stroke-width="7"/>
+<use href="#mh-b" stroke="#b4c7da" stroke-width="6.4"/>
+<use href="#mh-c" stroke="#b4c7da" stroke-width="5"/>
+<use href="#mh-a" class="mhfl"/>
+<use href="#mh-b" class="mhfl"/>
+<use href="#mh-c" class="mhfl"/>
+<g transform="translate(-1.5 -2)" opacity=".85">
+<use href="#mh-a" stroke="#f2f8fd" stroke-width="2.4"/>
+<use href="#mh-b" stroke="#f2f8fd" stroke-width="2.2"/>
+<use href="#mh-c" stroke="#f2f8fd" stroke-width="1.8"/>
+</g>
+</g>
+<g filter="url(#mh-sh)">
+<circle cx="40" cy="50" r="15" fill="url(#mh-fl)"/><circle cx="140" cy="50" r="15" fill="url(#mh-fl)"/><circle cx="240" cy="50" r="15" fill="url(#mh-fl)"/><circle cx="240" cy="160" r="15" fill="url(#mh-fl)"/><circle cx="40" cy="160" r="15" fill="url(#mh-fl)"/>
+<circle cx="40" cy="50" r="10.5" fill="url(#mh-sph)"/><circle cx="140" cy="50" r="10.5" fill="url(#mh-sph)"/><circle cx="240" cy="50" r="10.5" fill="url(#mh-sph)"/><circle cx="240" cy="160" r="10.5" fill="url(#mh-sph)"/><circle cx="40" cy="160" r="10.5" fill="url(#mh-sph)"/>
+</g>
+<g fill="#fff" opacity=".5"><circle cx="36.5" cy="46" r="2"/><circle cx="136.5" cy="46" r="2"/><circle cx="236.5" cy="46" r="2"/><circle cx="236.5" cy="156" r="2"/><circle cx="36.5" cy="156" r="2"/></g>
+<g fill="#0d1a29" font-size="11" font-weight="600" font-family="IBM Plex Sans KR,sans-serif" text-anchor="middle"><text x="40" y="54">1</text><text x="140" y="54">2</text><text x="240" y="54">3</text><text x="240" y="164">5</text><text x="40" y="164">4</text></g>
+<g stroke="#5fd0e0" stroke-width="2.2" stroke-linecap="round"><path d="M10 16L24 33"/><path d="M252 171L262 183"/></g>
+<g fill="#5fd0e0"><polygon points="29,38.5 21.8,35.5 27.2,30.9"/><polygon points="270,191.5 262.8,188.5 268.2,183.9"/></g>
+<g fill="#9fb1c5" font-size="9" font-family="IBM Plex Sans KR,sans-serif"><text x="4" y="11">5 m³/s</text><text x="222" y="208">5 m³/s</text></g>
+</svg>
+</header>
+
+<div class="vsw" role="group" aria-label="버전 전환">
+<button type="button" data-view="main" aria-pressed="true">기본 버전</button>
+<button type="button" data-view="gem" aria-pressed="false">Gemini 버전</button>
+</div>
+<div class="layout">
+<div>
+<section>
+<h2>관</h2>
+<p class="hint">처음 추정한 유량을 넣어 주세요. 각 접합점에서 들어오는 양과 나가는 양이 같도록 맞추면 돼요. 음수는 관의 기준 방향과 반대로 흐른다는 뜻이에요.</p>
+<div class="prow phead"><span>이름</span><span>관 저항(K)</span><span>처음 추정 유량</span><span></span></div>
+<div id="pipes"></div>
+<button class="add" id="addPipe">관 추가</button>
+</section>
+
+<section>
+<h2>루프</h2>
+<p class="hint">물이 한 바퀴 도는 닫힌 구간(루프)을 한 줄에 하나씩 적어요. 관 이름 뒤의 +는 도는 방향과 같게, -는 반대로 흐르는 관이에요. 예: AB+ BE+ DE- AD-</p>
+<div id="loops"></div>
+<button class="add" id="addLoop">루프 추가</button>
+</section>
+
+<section>
+<h2>계산 설정</h2>
+<p class="hint">관 속 물이 겪는 에너지 손실을 어떤 공식으로 계산할지 고르세요.</p>
+<div class="seg" role="group" aria-label="수두손실 공식">
+<button type="button" data-n="2" aria-pressed="true">Darcy–Weisbach</button>
+<button type="button" data-n="1.852" aria-pressed="false">Hazen–Williams</button>
+</div>
+<details>
+<summary>공식마다 뭐가 다른가요?</summary>
+<div class="nbody">
+<p>물이 빨리 흐를수록 관 안에서 잃는 에너지(수두손실)도 커져요. 공식마다 <b>그 손실이 늘어나는 속도</b>가 달라요.</p>
+<ul>
+<li><b>Darcy–Weisbach</b>: 손실이 유량의 <b>제곱</b>에 비례해요. 물이 2배 흐르면 손실은 4배가 돼요.</li>
+<li><b>Hazen–Williams</b>: 상수도에서 많이 쓰는 공식이에요. 손실이 유량의 <b>1.852제곱</b>에 비례해요. 교재 예제 5.14는 이 값을 1.85로 어림해서 써요.</li>
+</ul>
+<p>관 저항(K)은 관의 길이, 굵기, 거칠기로 정해지는 값이에요. 고른 공식에 맞는 값을 넣어야 해요.</p>
+</div>
+</details>
+<p class="hint" style="margin:14px 0 6px">보정 방식</p>
+<div class="seg" role="group" aria-label="보정 방식">
+<button type="button" data-mode="sim" aria-pressed="true">동시(교재)</button>
+<button type="button" data-mode="seq" aria-pressed="false">순차</button>
+</div>
+<details>
+<summary>정밀도 설정</summary>
+<div class="adv">
+<div><label for="tol">허용 오차 (작을수록 정밀)</label><input id="tol" type="number" step="any" value="0.000001"></div>
+<div><label for="max">최대 반복 횟수</label><input id="max" type="number" value="100"></div>
+<div style="grid-column:1/-1"><label for="nIn">지수 n (직접 입력)</label><input id="nIn" type="number" step="any" value="2"></div>
+</div>
+</details>
+<button class="ghost" id="example" style="margin-right:6px">격자 예제</button><button class="ghost" id="ex514">교재 예제 5.14</button>
+</section>
+</div>
+
+<div>
+<section id="out"></section>
+<section>
+<h2>계산이 안정되는 과정</h2>
+<p class="hint">반복할 때마다 유량을 고친 크기예요. 0에 가까워질수록 계산이 안정된 거예요. 점선은 "이 정도면 충분하다"고 정한 기준선이에요.</p>
+<div id="chart"></div>
+</section>
+</div>
+</div>
+<div id="gem" hidden>
+<div class="gc">
+<div class="gh">
+<div class="gbrand"><div class="spark"></div><div><div class="gtitle">Hardy Cross Exact Ex 5.14 Analyzer</div><div class="gsub">교재 표 5.5.1 방식 · 두 루프를 연립해서 동시에 보정</div></div></div>
+<button type="button" class="gbtn grad" id="gemRun">✦ 해석 실행</button>
+</div>
+<div class="gtools">
+<button type="button" class="gbtn" id="gemEx">교재 값(예제 5.14)</button>
+<button type="button" class="gbtn" id="gemOrig">Gemini 원본 값</button>
+<label>반복 횟수 <input id="gemIter" type="number" value="2" min="1"></label>
+</div>
+<p class="gmut" style="font-size:12px;margin:0 0 14px">루프는 2개까지 표시돼요. 3개 이상이면 나머지는 기본 버전으로 돌아갈 때 그대로 유지돼요. 관마다 n이 달라도 기본 버전은 첫 번째 관의 n을 써요.</p>
+<div class="gtw"><div id="gemTable"></div></div>
+<div class="ggrid">
+<div class="gbox"><h3>단계별 반복 연산 로그</h3><pre id="gemLog">실행 버튼을 누르면 계산 로그가 표시돼요.</pre></div>
+<div class="gbox"><h3>단계별 수정 유량 결과</h3><ul class="gsum" id="gemSum"><li class="gmut">해석 대기 중...</li></ul></div>
+</div>
+</div>
+</div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const EXAMPLE = () => ({
+  pipes: [["AB",2,50],["BC",3,30],["DE",3,50],["EF",2,70],["AD",1,50],["BE",1.5,20],["CF",1,30]].map(([name,K,Q]) => ({name,K:String(K),Q:String(Q)})),
+  loops: ["AB+ BE+ DE- AD-", "BC+ CF+ EF- BE-"]
+});
+let state = Object.assign(EXAMPLE(), {n: 2, mode: 'sim'});
+let calcOpen = false, calcIter = 0, BOOK_SIG = '';
+
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  kids.forEach(k => e.append(k));
+  return e;
+}
+
+function renderInputs() {
+  const pw = $('pipes'); pw.replaceChildren();
+  state.pipes.forEach((p, i) => {
+    const row = el('div', {className: 'prow'});
+    [['name','text','예: AB'],['K','number','K'],['Q','number','Q']].forEach(([f, type, ph]) => {
+      const inp = el('input', {type, value: p[f], placeholder: ph, ariaLabel: ph});
+      if (type === 'number') inp.step = 'any';
+      inp.dataset.i = i; inp.dataset.f = f; inp.dataset.kind = 'pipe';
+      row.append(inp);
+    });
+    const del = el('button', {className: 'x', type: 'button', textContent: '×', ariaLabel: '관 삭제'});
+    del.onclick = () => { state.pipes.splice(i, 1); renderInputs(); compute(); };
+    row.append(del); pw.append(row);
+  });
+  const lw = $('loops'); lw.replaceChildren();
+  state.loops.forEach((l, i) => {
+    const row = el('div', {className: 'lrow'});
+    const inp = el('input', {type: 'text', value: l, placeholder: '예: AB+ BE+ DE- AD-', ariaLabel: '루프'});
+    inp.dataset.i = i; inp.dataset.kind = 'loop';
+    const del = el('button', {className: 'x', type: 'button', textContent: '×', ariaLabel: '루프 삭제'});
+    del.onclick = () => { state.loops.splice(i, 1); renderInputs(); compute(); };
+    row.append(inp, del); lw.append(row);
+  });
+}
+
+document.addEventListener('input', e => {
+  const t = e.target, k = t.dataset && t.dataset.kind;
+  if (k === 'pipe') state.pipes[+t.dataset.i][t.dataset.f] = t.value;
+  else if (k === 'loop') state.loops[+t.dataset.i] = t.value;
+  else if (t.id === 'nIn') {
+    const v = parseFloat(t.value);
+    if (!(v > 0)) return;
+    state.n = v;
+    document.querySelectorAll('.seg button[data-n]').forEach(x => x.setAttribute('aria-pressed', parseFloat(x.dataset.n) === v));
+  }
+  else if (t.id !== 'tol' && t.id !== 'max') return;
+  compute();
+});
+$('addPipe').onclick = () => { state.pipes.push({name:'', K:'1', Q:'0'}); renderInputs(); };
+$('addLoop').onclick = () => { state.loops.push(''); renderInputs(); };
+$('example').onclick = () => { Object.assign(state, EXAMPLE()); state.n = 2; syncSeg(); renderInputs(); compute(); };
+$('ex514').onclick = () => {
+  state.pipes = [['1',0.146,2.5],['2',0.218,2.5],['3',0.073,1],['4',0.073,3.5],['5',0.122,3.5],['6',0.590,1.5]].map(([name,K,Q]) => ({name, K: String(K), Q: String(Q)}));
+  state.loops = ['1+ 3- 2-', '4+ 5+ 6- 3+'];
+  state.n = 1.85; state.mode = 'sim'; BOOK_SIG = sig();
+  syncSeg(); renderInputs(); compute();
+};
+function syncSeg() {
+  $('nIn').value = state.n;
+  document.querySelectorAll('.seg button').forEach(x => {
+    const on = x.dataset.n ? parseFloat(x.dataset.n) === state.n : x.dataset.mode === state.mode;
+    x.setAttribute('aria-pressed', on);
+  });
+}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  if (b.dataset.n) state.n = parseFloat(b.dataset.n); else state.mode = b.dataset.mode;
+  syncSeg();
+  compute();
+});
+
+function parse() {
+  const pipes = {};
+  state.pipes.forEach((p, i) => {
+    const name = p.name.trim(), K = parseFloat(p.K), Q = parseFloat(p.Q);
+    if (!name) throw new Error(`${i + 1}번째 관의 이름을 입력하세요.`);
+    if (pipes[name]) throw new Error(`관 이름 "${name}"이(가) 중복되었습니다.`);
+    if (!(K > 0)) throw new Error(`관 ${name}: K 계수는 0보다 커야 합니다.`);
+    if (!isFinite(Q)) throw new Error(`관 ${name}: 초기 유량을 숫자로 입력하세요.`);
+    pipes[name] = {K, Q};
+  });
+  if (!Object.keys(pipes).length) throw new Error('관을 하나 이상 추가하세요.');
+  const loops = state.loops.map(s => s.trim()).filter(Boolean).map((line, i) =>
+    line.split(/[\s,]+/).map(tok => {
+      const sg = tok.slice(-1), name = tok.slice(0, -1);
+      if ((sg !== '+' && sg !== '-') || !pipes[name]) throw new Error(`루프 ${i + 1}: "${tok}"을(를) 해석할 수 없습니다. 관 이름 뒤에 +나 -를 붙이세요.`);
+      return [name, sg === '+' ? 1 : -1];
+    }));
+  if (!loops.length) throw new Error('루프를 하나 이상 추가하세요.');
+  return {pipes, loops};
+}
+
+function solve(pipes, loops, n, tol, maxIter) {
+  const h = p => p.K * p.Q * Math.abs(p.Q) ** (n - 1);
+  const hist = [], log = [], detail = [];
+  for (let it = 1; it <= maxIter; it++) {
+    let maxDq = 0; const dqs = [], det = [];
+    for (const loop of loops) {
+      let num = 0, den = 0; const rws = [];
+      for (const [name, s] of loop) {
+        const p = pipes[name];
+        const hv = s * h(p), dv = n * p.K * Math.abs(p.Q) ** (n - 1);
+        num += hv; den += dv;
+        rws.push({name, s, Q: p.Q, h: hv, d: dv});
+      }
+      if (den === 0) throw new Error('분모가 0입니다. 루프의 모든 관 유량이 0이면 계산할 수 없습니다.');
+      const dq = -num / den;
+      dqs.push(dq); det.push({rws, num, den, dq});
+      if (state.mode === 'seq') for (const [name, s] of loop) pipes[name].Q += s * dq;
+      maxDq = Math.max(maxDq, Math.abs(dq));
+    }
+    if (state.mode !== 'seq') loops.forEach((loop, k) => { for (const [name, s] of loop) pipes[name].Q += s * dqs[k]; });
+    log.push(dqs); detail.push(det);
+    hist.push(maxDq);
+    if (maxDq < tol) return {iters: it, ok: true, h, hist, log, detail};
+  }
+  return {iters: maxIter, ok: false, h, hist, log, detail};
+}
+
+function compute() {
+  const out = $('out');
+  try {
+    const {pipes, loops} = parse();
+    const tol = parseFloat($('tol').value), mx = parseInt($('max').value, 10);
+    if (!(tol > 0) || !(mx > 0)) throw new Error('허용오차와 최대 반복은 0보다 커야 합니다.');
+    const res = solve(pipes, loops, state.n, tol, mx);
+    showResult(pipes, loops, res);
+    drawChart(res.hist, tol);
+  } catch (e) {
+    out.replaceChildren(el('h2', {textContent: '결과'}), el('p', {className: 'err', textContent: e.message}));
+    $('chart').replaceChildren();
+  }
+}
+
+function showResult(pipes, loops, res) {
+  const out = $('out');
+  const maxQ = Math.max(...Object.values(pipes).map(p => Math.abs(p.Q)), 1e-12);
+  const status = el('div', {className: 'status'},
+    el('h2', {textContent: '결과', style: 'margin:0'}),
+    el('span', {className: 'pill' + (res.ok ? '' : ' warn'), textContent: res.ok ? `${res.iters}번 반복해서 계산 완료` : `${res.iters}번 반복했지만 아직 안정되지 않았어요`}));
+  const last = res.hist[res.hist.length - 1];
+  const mk = (l, v) => el('div', {className: 'm'}, el('span', {textContent: l}), el('b', {textContent: v}));
+  const metrics = el('div', {className: 'metrics'}, mk('반복 횟수', res.iters + '회'), mk('마지막 조정량', last < 0.001 ? '거의 0' : last.toFixed(3)), mk('관', Object.keys(pipes).length + '개'), mk('루프', loops.length + '개'));
+  const csv = ['관,유량,손실', ...Object.entries(pipes).map(([n, p]) => `${n},${p.Q.toFixed(3)},${res.h(p).toFixed(3)}`)].join('\n');
+  const cb = el('button', {className: 'ghost sm', type: 'button', textContent: '결과 복사'});
+  cb.onclick = async () => {
+    try { await navigator.clipboard.writeText(csv); cb.textContent = '복사됨'; } catch (e) { cb.textContent = '복사할 수 없음'; }
+    setTimeout(() => { cb.textContent = '결과 복사'; }, 1600);
+  };
+  status.append(cb);
+  const list = el('div');
+  const head = el('div', {className: 'res h'}, el('span', {textContent: '관'}), el('span', {textContent: '유량 크기'}), el('span', {className: 'num', textContent: '유량'}), el('span', {className: 'num', textContent: '손실(수두)'}));
+  list.append(head);
+  Object.entries(pipes).forEach(([name, p]) => {
+    const bar = el('div', {className: 'bar' + (p.Q < 0 ? ' neg' : '')});
+    bar.style.width = '0%';
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = (Math.abs(p.Q) / maxQ * 100) + '%'; }));
+    list.append(el('div', {className: 'res'},
+      el('b', {textContent: name}),
+      el('div', {className: 'track'}, bar),
+      el('span', {className: 'num', textContent: p.Q.toFixed(3)}),
+      el('span', {className: 'num', textContent: res.h(p).toFixed(3)})));
+  });
+  const cols = `3rem repeat(${loops.length}, 1fr)`;
+  const sgn = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(3);
+  const iterBlock = el('div', {style: 'margin-top:20px'},
+    el('h2', {textContent: '반복할 때마다 고친 유량'}),
+    el('p', {className: 'hint', textContent: '한 번 반복할 때 루프마다 유량을 얼마나 고쳤는지 보여줘요. 앞 6회까지 표시해요.'}),
+    el('div', {className: 'itr h', style: `grid-template-columns:${cols}`}, el('span', {textContent: '반복'}), ...loops.map((_, i) => el('span', {className: 'num', textContent: `루프 ${i + 1}`}))),
+    ...res.log.slice(0, 6).map((d, k) => el('div', {className: 'itr', style: `grid-template-columns:${cols}`}, el('b', {textContent: String(k + 1)}), ...d.map(v => el('span', {className: 'num', textContent: sgn(v)})))));
+  const resid = el('div', {className: 'loops'});
+  loops.forEach((loop, i) => {
+    const sum = loop.reduce((a, [nm, s]) => a + s * res.h(pipes[nm]), 0);
+    resid.append(el('span', {textContent: `루프 ${i + 1} 균형 오차: ${Math.abs(sum) < 0.001 ? '거의 0' : sum.toFixed(3)}`}));
+  });
+  out.replaceChildren(status, metrics, list,
+    el('p', {className: 'note', textContent: '금색 막대(음수 유량)는 관의 기준 방향과 반대로 흐른다는 뜻이에요. 루프의 균형 오차가 0에 가까울수록 계산이 정확해요.'}),
+    resid, iterBlock, calcBlock(res, loops));
+}
+
+function sig() { return JSON.stringify([state.pipes, state.loops, state.n, state.mode]); }
+function calcBlock(res, loops) {
+  const BOOK = [[0.291, -0.295], [-0.011, 0.016]];
+  const isBook = BOOK_SIG !== '' && sig() === BOOK_SIG;
+  const sg = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(3);
+  const box = el('details', {style: 'margin-top:18px'});
+  box.open = calcOpen;
+  box.addEventListener('toggle', () => { calcOpen = box.open; });
+  box.append(el('summary', {textContent: '교재 표 방식으로 계산 과정 보기'}));
+  box.append(el('p', {className: 'hint', style: 'margin:8px 0 0', textContent: '교재 표 5.5.2, 5.5.3과 같은 순서예요. 관마다 손실과 민감도(유량이 조금 변할 때 손실이 바뀌는 정도)를 구해 더한 뒤 보정유량을 계산해요.'}));
+  const nIt = Math.min(res.detail.length, 6);
+  if (calcIter >= nIt) calcIter = 0;
+  const body = el('div');
+  const draw = () => {
+    body.replaceChildren();
+    res.detail[calcIter].forEach((L, i) => {
+      body.append(el('p', {className: 'ctt', textContent: `${calcIter + 1}차 보정 · 루프 ${i + 1}`}));
+      body.append(el('div', {className: 'ctr h'}, el('span', {textContent: '관'}), el('span', {className: 'num', textContent: '유량'}), el('span', {className: 'num', textContent: '손실'}), el('span', {className: 'num', textContent: '민감도'})));
+      L.rws.forEach(r => body.append(el('div', {className: 'ctr'}, el('b', {textContent: r.name}), el('span', {className: 'num', textContent: sg(r.s * r.Q)}), el('span', {className: 'num', textContent: sg(r.h)}), el('span', {className: 'num', textContent: r.d.toFixed(3)}))));
+      body.append(el('div', {className: 'ctr f'}, el('span', {textContent: '합'}), el('span'), el('span', {className: 'num', textContent: sg(L.num)}), el('span', {className: 'num', textContent: L.den.toFixed(3)})));
+      let txt = `보정유량 = −(${sg(L.num)}) ÷ ${L.den.toFixed(3)} = ${sg(L.dq)}`;
+      const bk = isBook && BOOK[calcIter] ? BOOK[calcIter][i] : undefined;
+      if (bk !== undefined) txt += `  ·  교재 ${sg(bk)}${Math.abs(L.dq - bk) < 0.002 ? ' (일치)' : ' (차이 있음)'}`;
+      body.append(el('p', {className: 'note', textContent: txt}));
+    });
+  };
+  const sel = el('div', {className: 'itsel'});
+  for (let k = 0; k < nIt; k++) {
+    const b = el('button', {type: 'button', textContent: `${k + 1}차`});
+    b.setAttribute('aria-pressed', k === calcIter);
+    b.onclick = () => { calcIter = k; sel.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', j === k)); draw(); };
+    sel.append(b);
+  }
+  box.append(sel, body);
+  draw();
+  return box;
+}
+function tickLabel(k) { return k >= 0 ? String(10 ** k) : '0.' + '0'.repeat(-k - 1) + '1'; }
+function drawChart(hist, tol) {
+  const W = 440, H = 150, pl = 56, pr = 12, pt = 10, pb = 22;
+  const ys = hist.map(v => Math.log10(Math.max(v, 1e-16)));
+  const lt = Math.log10(tol);
+  const lo = Math.min(lt, ...ys) - 0.5, hi = Math.max(lt, ...ys) + 0.5;
+  const X = i => pl + (hist.length > 1 ? i / (hist.length - 1) : 0.5) * (W - pl - pr);
+  const Y = v => pt + (hi - v) / (hi - lo) * (H - pt - pb);
+  let s = '';
+  for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) {
+    s += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${Y(k)}" y2="${Y(k)}"/><text class="tick" x="${pl - 6}" y="${Y(k) + 3}" text-anchor="end">${tickLabel(k)}</text>`;
+  }
+  s += `<line class="tol" x1="${pl}" x2="${W - pr}" y1="${Y(lt)}" y2="${Y(lt)}"/>`;
+  s += `<polyline class="ln" points="${ys.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ')}"/>`;
+  ys.forEach((v, i) => { s += `<circle class="dot" cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3"/>`; });
+  s += `<text class="tick" x="${pl}" y="${H - 6}">1회</text><text class="tick" x="${W - pr}" y="${H - 6}" text-anchor="end">${hist.length}회</text>`;
+  $('chart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="반복에 따른 보정유량 감소 그래프">${s}</svg>`;
+}
+
+renderInputs();
+compute();
+let gem = [], extraLoops = [], curView = 'main';
+const GEM_ORIG = [[1,0.146,2.5,1,0],[2,0.218,-2.5,1,0],[3,0.073,-1,1,-1],[4,0.073,1,0,1],[5,0.122,3.5,0,1],[6,0.59,-1.5,0,1]];
+const GEM_EX = GEM_ORIG.map(r => r[0] === 4 ? [4,0.073,3.5,0,1] : r);
+const GEM_IDLE = '실행 버튼을 누르면 계산 로그가 표시돼요.';
+
+function toGem() {
+  const all = state.loops.map(l => l.trim()).filter(Boolean);
+  extraLoops = all.slice(2);
+  const ls = all.slice(0, 2).map(l => { const m = {}; l.split(/[\s,]+/).forEach(t => { m[t.slice(0, -1)] = t.slice(-1) === '-' ? -1 : 1; }); return m; });
+  gem = state.pipes.map((p, i) => {
+    const nm = p.name.trim() || String(i + 1);
+    return {name: nm, k: p.K, n: String(state.n), q: p.Q, li: String((ls[0] || {})[nm] || 0), lii: String((ls[1] || {})[nm] || 0)};
+  });
+}
+function fromGem() {
+  state.pipes = gem.map(g => ({name: g.name, K: g.k, Q: g.q}));
+  const mk = f => gem.filter(g => +g[f]).map(g => g.name + (+g[f] > 0 ? '+' : '-')).join(' ');
+  state.loops = [mk('li'), mk('lii')].filter(Boolean).concat(extraLoops);
+  const n = parseFloat(gem[0] && gem[0].n);
+  if (n > 0) state.n = n;
+}
+function resetGemOut() {
+  $('gemLog').textContent = GEM_IDLE;
+  $('gemSum').replaceChildren(el('li', {className: 'gmut', textContent: '해석 대기 중...'}));
+}
+function loadGem(rows, nv = '1.852') {
+  gem = rows.map(([id, k, q, li, lii]) => ({name: String(id), k: String(k), n: nv, q: String(q), li: String(li), lii: String(lii)}));
+  extraLoops = [];
+  renderGem(); resetGemOut();
+}
+function renderGem() {
+  const t = el('table');
+  const hd = el('tr');
+  ['관로', '지수 k', '마찰지수 n', '초기유량 Q₀', '루프 I', '루프 II'].forEach(x => hd.append(el('th', {textContent: x})));
+  t.append(el('thead', {}, hd));
+  const tb = el('tbody');
+  gem.forEach((g, i) => {
+    const tr = el('tr');
+    tr.append(el('td', {}, el('b', {textContent: 'Pipe ' + g.name})));
+    [['k', '0.001'], ['n', '0.001'], ['q', '0.1']].forEach(([f, st]) => {
+      const inp = el('input', {type: 'number', value: g[f]});
+      inp.step = st; inp.dataset.g = f; inp.dataset.i = i;
+      tr.append(el('td', {}, inp));
+    });
+    ['li', 'lii'].forEach(f => {
+      const sel = el('select');
+      ['1', '0', '-1'].forEach(v => { const o = el('option', {value: v, textContent: v}); if (g[f] === v) o.selected = true; sel.append(o); });
+      sel.dataset.g = f; sel.dataset.i = i;
+      tr.append(el('td', {}, sel));
+    });
+    tb.append(tr);
+  });
+  t.append(tb);
+  $('gemTable').replaceChildren(t);
+}
+$('gemTable').addEventListener('input', e => { const t = e.target; if (t.dataset.g) gem[+t.dataset.i][t.dataset.g] = t.value; });
+
+function gemRun() {
+  const P = gem.map(g => ({k: parseFloat(g.k), n: parseFloat(g.n), q: parseFloat(g.q), a: [+g.li, +g.lii]}));
+  const bad = P.findIndex(p => !(p.k > 0) || !(p.n > 0) || !isFinite(p.q));
+  const log = $('gemLog'), sum = $('gemSum');
+  if (bad >= 0) { log.textContent = `Pipe ${gem[bad].name}: k와 n은 0보다 커야 하고 Q는 숫자여야 해요.`; return; }
+  const iters = Math.max(1, parseInt($('gemIter').value, 10) || 2);
+  const w = 7;
+  const head = '반복 | ' + gem.map(g => ('Q' + g.name).padEnd(w)).join(' | ') + ' | ΔQ_I    | ΔQ_II';
+  const rows = [head, '-'.repeat(head.length)];
+  sum.replaceChildren();
+  for (let t = 1; t <= iters; t++) {
+    const b = [0, 0], J = [[0, 0], [0, 0]];
+    P.forEach(p => {
+      const h = p.k * Math.abs(p.q) ** (p.n - 1) * p.q, d = p.n * p.k * Math.abs(p.q) ** (p.n - 1);
+      for (let x = 0; x < 2; x++) { b[x] -= p.a[x] * h; for (let y = 0; y < 2; y++) J[x][y] += p.a[x] * p.a[y] * d; }
+    });
+    const det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+    if (!det) { rows.push('연립방정식을 풀 수 없어요. 루프가 비어 있거나 서로 같아요.'); break; }
+    const d1 = (b[0] * J[1][1] - J[0][1] * b[1]) / det, d2 = (J[0][0] * b[1] - J[1][0] * b[0]) / det;
+    P.forEach(p => { p.q += p.a[0] * d1 + p.a[1] * d2; });
+    rows.push(String(t).padEnd(4) + ' | ' + P.map(p => p.q.toFixed(3).padStart(w)).join(' | ') + ' | ' + d1.toFixed(3).padStart(7) + ' | ' + d2.toFixed(3).padStart(7));
+    sum.append(el('li', {}, el('span', {textContent: `[${t}차 수정] ΔQ_I: ${d1.toFixed(3)}, ΔQ_II: ${d2.toFixed(3)}`}), el('span', {textContent: '완료'})));
+    P.forEach((p, i) => sum.append(el('li', {}, el('span', {textContent: `  - Pipe ${gem[i].name} 유량`}), el('span', {textContent: p.q.toFixed(3) + ' m³/s'}))));
+  }
+  log.textContent = rows.join('\n');
+}
+$('gemRun').onclick = gemRun;
+$('gemEx').onclick = () => loadGem(GEM_EX, '1.85');
+$('gemOrig').onclick = () => loadGem(GEM_ORIG);
+
+function showView(v) {
+  if (v === curView) return;
+  if (v === 'gem') { toGem(); renderGem(); resetGemOut(); }
+  else { fromGem(); renderInputs(); syncSeg(); compute(); }
+  curView = v;
+  document.querySelector('.layout').hidden = v === 'gem';
+  $('gem').hidden = v !== 'gem';
+  document.querySelectorAll('.vsw button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+}
+document.querySelectorAll('.vsw button').forEach(b => { b.onclick = () => showView(b.dataset.view); });
+
+const root = document.documentElement;
+function setTheme(t) { root.dataset.theme = t; $('theme').textContent = t === 'dark' ? '라이트 모드' : '다크 모드'; }
+$('theme').onclick = () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+setTheme('dark');
+</script>
+</body>
+</html>
